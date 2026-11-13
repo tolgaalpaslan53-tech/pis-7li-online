@@ -59,6 +59,7 @@
   function canPlay(card, r=app.room){
     if (!card || !r || r.status!=='playing') return false;
     if (r.opening_club) return card.s==='C' && !['7','J','A','10'].includes(card.r);
+    if (r.my_first_turn && ['7','10','J','A'].includes(card.r)) return false;
     if (r.penalty>0) return card.r==='7';
     if (r.ace_chain) return card.r==='A' || card.s===r.active_suit;
     return card.r==='J' || card.s===r.active_suit || card.r===r.top_card?.r;
@@ -228,7 +229,7 @@
           <div class="my-hand" role="group" aria-label="Elindeki kartlar">${options.map(c=>cardHTML(c,{selectable:!app.preview,selected:app.selected===c.id,legal:ownTurn&&c.legal,disabled:!ownTurn||!c.legal})).join('')||'<div class="empty-hand">Elinde kart kalmadı.</div>'}</div>
           <div class="action-bar">
             <button class="draw-btn" type="button" data-action="draw" ${!ownTurn||!canDraw()||app.busy||app.preview?'disabled':''}>▣ <span>${drawTitle}</span></button>
-            <div class="action-hint">${ownTurn?(selectedCard?`Seçilen: <b>${escapeHTML(cardName(selectedCard))}</b>`:r.opening_club?'♣ İlk hamlede özel olmayan sinek zorunlu':r.ace_chain?'As serisini tamamla':penalty?'7 cezası birikiyor':eligible?'Uygun kartı seç':'Atılacak kart yok, çek'):'Sıranı bekle'}</div>
+            <div class="action-hint">${ownTurn?(selectedCard?`Seçilen: <b>${escapeHTML(cardName(selectedCard))}</b>`:r.opening_club?'♣ İlk hamlede özel olmayan sinek zorunlu':r.my_first_turn?'İlk sıranda özel kart oynanamaz':r.ace_chain?'As serisini tamamla':penalty?'7 cezası birikiyor':eligible?'Uygun kartı seç':'Atılacak kart yok, çek'):'Sıranı bekle'}</div>
             ${r.drawn&&ownTurn?`<button class="pass-btn" data-action="pass" ${app.busy||app.preview?'disabled':''}>Pas Geç</button>`:''}
             <button class="play-btn" data-action="play" ${!ownTurn||!selectedCard||!canPlay(selectedCard)||app.busy||app.preview?'disabled':''}>▶ <span>Kartı Oyna</span></button>
           </div>
