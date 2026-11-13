@@ -1,0 +1,14 @@
+{
+  "name":"Pis 7'li Online",
+  "short_name":"Pis 7'li",
+  "description":"Arkadaşlarınla özel odalarda Pis 7'li oyna.",
+  "start_url":"./",
+  "scope":"./",
+  "display":"standalone",
+  "background_color":"#07120f",
+  "theme_color":"#071b17",
+  "icons":[
+    {"src":"./assets/icon-192.png","sizes":"192x192","type":"image/png","purpose":"any maskable"},
+    {"src":"./assets/icon-512.png","sizes":"512x512","type":"image/png","purpose":"any maskable"}
+  ]
+}
