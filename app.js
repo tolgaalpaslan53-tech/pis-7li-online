@@ -58,18 +58,37 @@
 
   function canPlay(card, r=app.room){
     if (!card || !r || r.status!=='playing') return false;
+    if (r.opening_club) return card.s==='C';
     if (r.penalty>0) return card.r==='7';
     if (r.ace_chain) return card.r==='A' || card.s===r.active_suit;
     return card.r==='J' || card.s===r.active_suit || card.r===r.top_card?.r;
   }
   function canDraw(){
     if (!myTurn()) return false;
+    if (app.room.opening_club) return true;
     if (app.room.penalty>0) return true;
     return !(app.room.hand || []).some(c=>canPlay(c));
   }
   const findSelected = () => (app.room?.hand||[]).find(c=>c.id===app.selected);
   const cardName = c => c ? `${rankName(c.r)} ${suit(c.s).name}` : '';
   const byName = (id) => app.room?.players?.find(p=>p.id===id)?.name || 'Oyuncu';
+  const roundTotal = r => Number(r?.round_total) || 5;
+  const roundNo = r => Number(r?.round_no) || 1;
+  const score = (r,id) => Number(r?.scores?.[id]) || 0;
+  const lastPoints = (r,id) => Number(r?.last_points?.[id]) || 0;
+  const standings = r => [...(r?.players||[])].sort((a,b)=>score(r,a.id)-score(r,b.id) || a.name.localeCompare(b.name,'tr'));
+  function scoreRows(r,finished=false){
+    return standings(r).map((p,i)=>`<div class="score-row ${p.id===r.my_id?'is-mine':''}">
+      <span class="score-rank">${i+1}.</span><span class="score-name">${escapeHTML(p.name)}${p.id===r.my_id?' <small>(Sen)</small>':''}</span>
+      ${finished?`<span class="score-hand">Bu el <b>+${lastPoints(r,p.id)}</b></span>`:''}
+      <strong>${score(r,p.id)} <small>puan</small></strong></div>`).join('');
+  }
+  function historyHTML(r){
+    const h=Array.isArray(r.history)?r.history:[];
+    if(!h.length) return '<p class="no-history">Henüz tamamlanan el yok.</p>';
+    return `<details class="score-history"><summary>Önceki elleri gör (${h.length})</summary><div class="history-list">${[...h].reverse().map(x=>
+      `<div class="history-item"><b>${Number(x.round)}. el</b><span>${escapeHTML(byName(x.winner_id))} kazandı</span><small>${r.players.map(p=>`${escapeHTML(p.name)} +${Number(x.points?.[p.id]||0)}`).join(' · ')}</small></div>`).join('')}</div></details>`;
+  }
   function cardHTML(card, options={}){
     const s=suit(card.s), classes=['card-face',s.color==='red'?'card-red':'card-black'];
     if (options.selectable) classes.push('in-hand');
@@ -145,9 +164,17 @@
         return `<div class="waiting-slot ${p?'occupied':''}">${p?playerAvatar(p.name):'<span class="empty-avatar">+</span>'}
           <strong>${p?escapeHTML(p.name):'Oyuncu bekleniyor'}</strong><small>${p?(p.id===r.host_id?'♛ Oda Sahibi':'✓ Hazır'):'Boş koltuk'}</small></div>`;
       }).join('')}</div>
-      ${isHost()?`<button data-action="start" class="primary-btn start-button" ${n<2||app.busy?'disabled':''}>${n<2?'En az 2 oyuncu bekleniyor':'Oyunu Başlat'} <span>→</span></button>`:
+      <section class="round-settings" aria-label="Maçın el sayısı">
+        <div class="round-settings-title"><span>🏆 MAÇ AYARLARI</span><strong>${roundTotal(r)} EL</strong></div>
+        <p>Kaç el oynayacağınızı seçin. Her el sonunda puanlar toplanır; en az puanı alan maçı kazanır.</p>
+        ${isHost()?`<div class="round-presets">${[3,5,10,20].map(n=>`<button type="button" data-rounds="${n}" class="round-preset ${roundTotal(r)===n?'active':''}" ${app.busy?'disabled':''}>${n} El</button>`).join('')}</div>
+          <div class="round-custom"><label for="custom-rounds">Özel el sayısı</label><input type="number" id="custom-rounds" min="1" max="50" step="1" value="${roundTotal(r)}" inputmode="numeric"/><button type="button" data-action="custom-rounds" ${app.busy?'disabled':''}>Uygula</button></div>
+          <small>1–50 el seçilebilir. Oyun başladıktan sonra el sayısı değiştirilemez.</small>`:
+          `<div class="rounds-readonly">Oda sahibi ${roundTotal(r)} el olarak ayarladı.</div>`}
+      </section>
+      ${isHost()?`<button data-action="start" class="primary-btn start-button" ${n<2||app.busy?'disabled':''}>${n<2?'En az 2 oyuncu bekleniyor':`${roundTotal(r)} Ellik Maçı Başlat`} <span>→</span></button>`:
       `<div class="waiting-hint"><span class="small-spinner"></span> Oda sahibi oyunu başlatınca masa açılacak.</div>`}
-      <p class="waiting-caption">Oyun başladıktan sonra yeni oyuncu katılamaz. Oda sahibi isterse el sonunda yeniden başlatabilir.</p>
+      <p class="waiting-caption">Her el 7 kartla başlar. İlk kart sinek ♣ olmalıdır. El sayısını oda sahibi belirler.</p>
     </div></main>`;
   }
   function playerSeat(p,position){
@@ -168,13 +195,17 @@
     const selectedCard=findSelected();
     const top=getTop();
     const dynamicSuit=r.active_suit&&r.active_suit!==top?.s;
-    const turnText=r.status==='finished'?`${escapeHTML(byName(r.winner_id))} kazandı!`:
-       ownTurn?(r.ace_chain?'As attın! Aynı türü veya başka As oyna.':penalty?`7 cezası: +${r.penalty} kart — 7 at veya çek.`:'Sıra sende, kartını oyna!'):
+    const turnText=r.status==='finished'?`${escapeHTML(byName(r.winner_id))} ${roundNo(r)}. eli kazandı!`:
+       ownTurn?(r.opening_club?'Açılış: Sinek ♣ at! Yoksa sinek gelene kadar çek.':r.ace_chain?'As attın! Aynı türü veya başka As oyna.':penalty?`7 cezası: +${r.penalty} kart — 7 at veya çek.`:'Sıra sende, kartını oyna!'):
        `Sıra ${escapeHTML(byName(r.turn))} oyuncusunda`;
-    const drawTitle=penalty?`${r.penalty} Kart Çek`:'Kart Çek';
+    const drawTitle=r.opening_club?'Sinek Bulana Kadar Çek':penalty?`${r.penalty} Kart Çek`:'Kart Çek';
     const roomCard=`<div class="panel-card room-panel"><div class="panel-heading"><h3>Oda: <span>${r.code}</span></h3><button data-action="copy-code" title="Oda kodunu kopyala">⧉</button><span class="count-pill">● ${r.players.length}/4</span></div>
       <div class="compact-players">${r.players.map(p=>`<div class="compact-person"><span class="person-status ${r.turn===p.id&&r.status==='playing'?'active':''}"></span><span>${escapeHTML(p.name)} ${p.id===r.my_id?'(Sen)':''}</span><b>${p.count} <small>kart</small>${p.count===1?'<small class="last-card-alert"> !</small>':''}</b></div>`).join('')}</div>
       <button class="tiny-action" data-action="share-room">Davet bağlantısını paylaş ↗</button></div>`;
+    const scorePanel=`<div class="panel-card scoreboard"><div class="score-heading"><div><span>🏆 MAÇ PUANLARI</span><h3>${roundNo(r)} / ${roundTotal(r)}. El</h3></div><span class="score-low">↓ Az puan kazanır</span></div>
+      <div class="score-progress"><span style="width:${Math.min(100,Math.round(((r.status==='finished'?roundNo(r):roundNo(r)-1)/roundTotal(r))*100))}%"></span></div>
+      <div class="score-rows">${scoreRows(r)}</div>${historyHTML(r)}
+      <small class="score-help">Elini bitiren 0 puan alır. Diğerleri elde kalan kartların puanını alır.</small></div>`;
     const rulesShort=`<div class="panel-card rules-panel"><h3>♧ Özel Kartlar</h3><div class="rule-line"><b class="rule-icon red">7</b><span>Sonrakine +3 kart; 7'ler birikir.</span></div>
       <div class="rule-line"><b class="rule-icon blue">J</b><span>İstediğin türü seçersin.</span></div>
       <div class="rule-line"><b class="rule-icon purple">A</b><span>Aynı oyuncu aynı türü veya başka As'ı atar.</span></div>
@@ -183,8 +214,9 @@
     return `${header()}<main class="game-main ${app.preview?'is-preview':''}">
       ${app.preview?'<div class="preview-notice">👀 TASARIM ÖNİZLEMESİ — Bu masa çevrimiçi değil. Gerçek oyun için Supabase kurulumu gerekiyor.</div>':''}
       <section class="game-column">
-        <div class="game-meta"><div><span class="eyebrow">♠ PİS 7’Lİ · CANLI MASA</span><h1>Oyun Masası</h1></div>
+        <div class="game-meta"><div><span class="eyebrow">♠ PİS 7’Lİ · CANLI MASA</span><h1>Oyun Masası <span class="round-pill">${roundNo(r)} / ${roundTotal(r)}. EL</span></h1></div>
           <div class="game-meta-right"><span class="room-small">ODA <b>${r.code}</b></span><span class="dir-tag">${r.direction===1?'↻ Saat yönü':'↺ Ters yön'}</span></div></div>
+        <div class="round-progress">EL ${r.round_no||1} / ${r.round_total||5} <span>•</span> ${r.match_complete?'MAÇ TAMAMLANDI':'EN AZ PUAN KAZANIR'}</div>
         <div class="table-shell"><div class="felt-table"><div class="felt-emblem">♠ ♣</div>
           ${seats}
           <div class="middle-area">
@@ -198,27 +230,36 @@
           <div class="my-hand" role="group" aria-label="Elindeki kartlar">${options.map(c=>cardHTML(c,{selectable:!app.preview,selected:app.selected===c.id,legal:ownTurn&&c.legal,disabled:!ownTurn||!c.legal})).join('')||'<div class="empty-hand">Elinde kart kalmadı.</div>'}</div>
           <div class="action-bar">
             <button class="draw-btn" type="button" data-action="draw" ${!ownTurn||!canDraw()||app.busy||app.preview?'disabled':''}>▣ <span>${drawTitle}</span></button>
-            <div class="action-hint">${ownTurn?(selectedCard?`Seçilen: <b>${escapeHTML(cardName(selectedCard))}</b>`:r.ace_chain?'As serisini tamamla':penalty?'7 cezası birikiyor':eligible?'Uygun kartı seç':'Atılacak kart yok, çek'):'Sıranı bekle'}</div>
+            <div class="action-hint">${ownTurn?(selectedCard?`Seçilen: <b>${escapeHTML(cardName(selectedCard))}</b>`:r.opening_club?'♣ İlk hamlede sinek zorunlu':r.ace_chain?'As serisini tamamla':penalty?'7 cezası birikiyor':eligible?'Uygun kartı seç':'Atılacak kart yok, çek'):'Sıranı bekle'}</div>
             ${r.drawn&&ownTurn?`<button class="pass-btn" data-action="pass" ${app.busy||app.preview?'disabled':''}>Pas Geç</button>`:''}
             <button class="play-btn" data-action="play" ${!ownTurn||!selectedCard||!canPlay(selectedCard)||app.busy||app.preview?'disabled':''}>▶ <span>Kartı Oyna</span></button>
           </div>
         </div>
       </section>
-      <aside class="side-column">${roomCard}${rulesShort}<div class="panel-card activity-panel"><h3>◎ Son Hamle</h3><p>${escapeHTML(r.last_action || 'Oyun başlamak üzere.')}</p><span class="activity-foot">Diğer oyuncuların kartları gizlidir.</span></div></aside>
-      ${r.status==='finished'?`<div class="winner-overlay"><div class="winner-panel"><div class="winner-cup">🏆</div><h2>${r.winner_id===r.my_id?'TEBRİKLER, KAZANDIN!':`${escapeHTML(byName(r.winner_id))} KAZANDI!`}</h2><p>Bu el tamamlandı. Yeni el aynı oyuncularla başlayabilir.</p>
-        ${isHost()&&!app.preview?`<button class="primary-btn" data-action="start">Tekrar Oyna ↻</button>`:''}<button class="secondary-btn" data-action="${app.preview?'close-preview':'leave'}">Ana Menü</button></div></div>`:''}
+      <aside class="side-column">${scorePanel}${roomCard}${rulesShort}<div class="panel-card activity-panel"><h3>◎ Son Hamle</h3><p>${escapeHTML(r.last_action || 'Oyun başlamak üzere.')}</p><span class="activity-foot">Diğer oyuncuların kartları gizlidir.</span></div></aside>
+      ${r.status==='finished'?`<div class="winner-overlay"><div class="winner-panel score-finish"><div class="winner-cup">🏆</div>
+        <span class="finish-kicker">${r.match_complete?`${roundTotal(r)} ELLİK MAÇ TAMAMLANDI`:`${roundNo(r)}. EL TAMAMLANDI`}</span>
+        <h2>${r.match_complete?(()=>{const sorted=standings(r),leaders=sorted.filter(p=>score(r,p.id)===score(r,sorted[0].id));return leaders.length>1?`BERABERE: ${leaders.map(p=>escapeHTML(p.name)).join(' & ')}`:`${escapeHTML(sorted[0].name)} MAÇI KAZANDI!`;})():r.winner_id===r.my_id?'BU ELİ KAZANDIN!':`${escapeHTML(byName(r.winner_id))} ELİ KAZANDI!`}</h2>
+        <p>${r.match_complete?'Maç bitti! Toplamda en az ceza puanı alan kazanır.':'El sonu puanları hesaplandı. Oda sahibi sıradaki eli başlatabilir.'}</p>
+        <div class="finish-table"><div class="finish-table-title"><span>OYUNCU</span><span>EL / TOPLAM PUAN</span></div>${scoreRows(r,true)}</div>
+        ${isHost()&&!app.preview?`<button class="primary-btn" data-action="start">${r.match_complete?'Yeni Maç Başlat ↻':`${roundNo(r)+1}. Ele Geç →`}</button>`:
+        `<div class="waiting-hint">${app.preview?'':'Oda sahibinin devam etmesi bekleniyor.'}</div>`}
+        <button class="secondary-btn" data-action="${app.preview?'close-preview':'leave'}">${app.preview?'Önizlemeden Çık':'Odadan Ayrıl'}</button></div></div>`:''}
     </main>`;
   }
   function rulesModal(){
     return `<div class="modal-backdrop" data-action="close-modal"><div class="modal-card" role="dialog" aria-modal="true" aria-label="Oyun kuralları"><div class="modal-title"><h2>🃏 Oyun Kuralları</h2><button data-action="close-modal" aria-label="Kapat">✕</button></div>
-      <p>2–4 oyuncu; 52 kartlık deste. Herkes 7 kartla başlar. Aynı tür veya aynı değerde kart atılır. Vale her zaman atılabilir.</p>
-      <ul><li><b>7:</b> Sonraki oyuncuya +3 kart. Üst üste 7 atılırsa ceza +6, +9, +12 olarak birikir. Ceza çekilince sıra geçer.</li>
+      <p>2–4 oyuncu; 52 kartlık deste. Her el herkes 7 kartla başlar. Oda sahibi 1–50 el seçebilir.</p>
+      <ul><li><b>Açılış:</b> İlk oyuncu sinek ♣ atmak zorundadır. Sineği yoksa sinek gelene kadar ortadan çeker; bulduğu sineği oynar. İlk hamleden sonra aynı tür veya aynı değer atılır.</li>
+        <li><b>7:</b> Sonraki oyuncuya +3 kart. Üst üste 7 atılırsa ceza +6, +9, +12 olarak birikir. Ceza çekilince sıra geçer.</li>
         <li><b>Vale (J):</b> Oyuncu sinek ♣, karo ♦, kupa ♥ veya maça ♠ seçer.</li>
         <li><b>As (A):</b> As'ı atan kişi yeniden oynar. Son As'ın türünden bir kart veya başka herhangi bir As atabilir. Kart yoksa 1 çeker; uygunsa oynar, değilse sıra geçer.</li>
         <li><b>10:</b> Oyun yönünü tersine çevirir.</li>
         <li><b>Normal tur:</b> Atılabilecek kart yoksa 1 kart çekilir. Gelen kart uygunsa atılabilir veya pas geçilebilir.</li>
-        <li><b>Kazanma:</b> As dışındaki son kartını atan oyuncu eli kazanır. Son kart As ise takip kartını oynama kuralı devam eder.</li>
-      </ul><p class="rules-note">Bu, birlikte belirlediğimiz kurallara göre hazırlanmış ilk sürümdür. Son kart uyarısı otomatik yapılır; puan tablosu sonraki sürüme bırakılmıştır.</p>
+        <li><b>Elin bitişi:</b> As dışındaki son kartını atan oyuncu eli kazanır. Son kart As ise takip kartını oynama kuralı devam eder.</li>
+        <li><b>Puan:</b> Eli bitiren 0 puan alır. Diğerlerinin elinde kalan 2–10 değerindeki kartlar üzerindeki sayı kadar (7 hariç), 7 = 20, Vale/Kız/Papaz = 10, As = 15 ceza puanı getirir.</li>
+        <li><b>Maç sonucu:</b> Seçilen tüm eller bitince toplam ceza puanı en düşük olan kazanır. Eşitlik varsa beraberlik olur.</li>
+      </ul><p class="rules-note">Son kart uyarısı otomatik yapılır. Oda sahibi maç başlamadan önce 3, 5, 10, 20 veya özel el sayısı seçebilir.</p>
       <button class="primary-btn" data-action="close-modal">Anladım</button></div></div>`;
   }
   function suitModal(){
@@ -303,6 +344,13 @@
     localStorage.setItem('p7_name',name);app.name=name;roomEntered(data,token);showToast('Odaya katıldın!');
     await announce();
   }
+  async function setRounds(count){
+    if(!Number.isInteger(count)||count<1||count>50){showToast('El sayısı 1 ile 50 arasında olmalı.',true);return;}
+    await busyTask(async()=>{
+      const r=await rpc('p7_set_rounds',{p_code:app.code,p_token:app.token,p_rounds:count});
+      updateRoom(r);await announce();showToast(`Maç ${count} el olarak ayarlandı.`);
+    });
+  }
   async function move(kind,card=null,suitValue=null){
     await busyTask(async()=>{
       const r=await rpc('p7_move',{p_code:app.code,p_token:app.token,p_kind:kind,p_card_id:card,p_suit:suitValue});
@@ -326,7 +374,8 @@
       hand:[{id:'S_A',r:'A',s:'S'},{id:'H_A',r:'A',s:'H'},{id:'H_7',r:'7',s:'H'},
         {id:'C_10',r:'10',s:'C'},{id:'C_J',r:'J',s:'C'}, {id:'D_8',r:'8',s:'D'}, {id:'S_K',r:'K',s:'S'}],
       top_card:{id:'C_A',r:'A',s:'C'},active_suit:'C',turn:'me',direction:1,
-      penalty:0,ace_chain:true,drawn:false,deck_count:23,winner_id:null,
+      penalty:0,ace_chain:true,drawn:false,deck_count:23,winner_id:null,round_no:2,round_total:5,scores:{mert:32,elif:18,emre:45,me:11},opening_club:false,match_complete:false,
+      last_points:{},history:[{round:1,winner_id:'me',points:{mert:32,elif:18,emre:45,me:0}}],
       last_action:'Sen Sinek As attın. Üzerine sinek veya başka bir As atabilirsin.'};
     render();
   }
@@ -359,6 +408,8 @@
     }
   });
   root.addEventListener('click',(e)=>{
+    const roundsButton=e.target.closest('[data-rounds]');
+    if(roundsButton){e.preventDefault();if(isHost()&&app.room?.status==='lobby')setRounds(Number(roundsButton.dataset.rounds));return;}
     const suitButton=e.target.closest('[data-suit]');
     if(suitButton){e.preventDefault();const card=findSelected();if(card&&card.r==='J')move('play',card.id,suitButton.dataset.suit);return;}
     const cardButton=e.target.closest('[data-card]');
@@ -385,6 +436,11 @@
     if(action==='copy-code')copyText(app.room.code);
     if(action==='share-room')share();
     if(action==='start')move('start');
+    if(action==='custom-rounds'){
+      const n=Number(document.querySelector('#custom-rounds')?.value);
+      if(!Number.isInteger(n)||n<1||n>50){showToast('1 ile 50 arasında tam sayı gir.',true);return;}
+      if(isHost()&&app.room?.status==='lobby')setRounds(n);
+    }
     if(action==='draw')move('draw');
     if(action==='pass')move('pass');
     if(action==='play'){
