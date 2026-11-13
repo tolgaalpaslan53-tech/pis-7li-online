@@ -1,7 +1,7 @@
-// Supabase Dashboard > Project Settings > API (veya Connect) ekranından al.
-// SADECE "publishable" (sb_publishable_...) ya da "anon" anahtarını kullan.
-// "secret" / "service_role" anahtarlarını buraya ASLA koyma.
+// Pis 7'li Online - Supabase bağlantısı
+// Mahalle Platformu ile aynı Supabase projesini kullanır.
+// Sadece publishable anahtar tarayıcıya eklenir; secret/service_role kullanılmaz.
 window.P7_CONFIG = {
-  SUPABASE_URL: 'https://PROJE-REFERANSIN.supabase.co',
-  SUPABASE_KEY: 'BURAYA_SUPABASE_PUBLISHABLE_VEYA_ANON_KEY'
+  SUPABASE_URL: 'https://eshftszmcaevllmyskfg.supabase.co',
+  SUPABASE_KEY: 'sb_publishable_NlUe8shFRw681eeHc7xsEw_NVLXBkff'
 };
