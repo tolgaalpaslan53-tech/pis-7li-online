@@ -228,7 +228,7 @@
           `<div class="rounds-readonly">Oda sahibi ${roundTotal(r)} el olarak ayarladı.</div>`}
       </section>
       ${isHost()&&n<4?`<section class="bot-settings"><div class="round-settings-title"><span>🤖 BOT EKLE</span><strong>${n}/4</strong></div><p>Eksik koltukları botlarla doldur. Zorluk seviyesini sen seç.</p><div class="bot-controls"><label for="bot-level">Bot zorluğu</label><select id="bot-level"><option value="easy">🟢 Kolay</option><option value="normal" selected>🟡 Normal</option><option value="hard">🔴 Zor</option></select><button type="button" class="secondary-btn" data-action="add-bot" ${app.busy?'disabled':''}>+ Bot Ekle</button></div></section>`:''}
-      ${isHost()?`<button data-action="start class="primary-btn start-button" ${n<2||app.busy?'disabled':''}>${n<2?'En az 2 oyuncu bekleniyor':`${roundTotal(r)} Ellik Maçı Başlat`} <span>→</span></button>`:
+      ${isHost()?`<button data-action="start" class="primary-btn start-button" ${n<2||app.busy?'disabled':''}>${n<2?'En az 2 oyuncu bekleniyor':`${roundTotal(r)} Ellik Maçı Başlat`} <span>→</span></button>`:
       `<div class="waiting-hint"><span class="small-spinner"></span> Oda sahibi oyunu başlatınca masa açılacak.</div>`}
       <p class="waiting-caption">Her el 7 kartla başlar. İlk kart sinek ♣ olmalıdır. El sayısını oda sahibi belirler.</p>
     </div></main>`;
