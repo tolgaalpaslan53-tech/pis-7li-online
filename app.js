@@ -336,6 +336,9 @@
     const oldHand=root.querySelector('.my-hand');
     const handLeft=oldHand ? oldHand.scrollLeft : null;
     const handWasAtEnd=oldHand ? oldHand.scrollLeft + oldHand.clientWidth >= oldHand.scrollWidth-3 : false;
+    if(app.error && app.screen==='room' && app.room?.status==='lobby'){
+      body += `<aside class="p7-start-error" role="alert"><strong>⚠️ Maç başlatılamadı</strong><p>${escapeHTML(app.error)}</p><button type="button" data-action="retry-start">Tekrar dene</button><button type="button" data-action="dismiss-error">Kapat</button></aside>`;
+    }
     root.innerHTML=body;
     const newHand=root.querySelector('.my-hand');
     if(newHand && handLeft !== null){
@@ -411,7 +414,12 @@
   async function busyTask(fn){
     if(app.busy)return;
     app.busy=true;render();
-    try{await fn();}catch(e){showToast(errorMessage(e),true);}finally{app.busy=false;render();}
+    try{await fn();}catch(e){
+      const message=errorMessage(e);
+      app.error=message;
+      showToast(message,true);
+      console.error('[Pis7] İşlem hatası:',e);
+    }finally{app.busy=false;render();}
   }
   async function create(name){
     if(!configured) throw new Error('Canlı oyun için önce Supabase ayarlarını tamamla.');
@@ -458,6 +466,7 @@
     },950);
   }
   async function move(kind,card=null,suitValue=null){
+    if(kind==='start')app.error='';
     await busyTask(async()=>{
       const r=await rpc('p7_move',{p_code:app.code,p_token:app.token,p_kind:kind,p_card_id:card,p_suit:suitValue});
       app.selected=null;app.suitPicker=false;updateRoom(r);await announce();
@@ -542,7 +551,12 @@
     }
     if(action==='copy-code')copyText(app.room.code);
     if(action==='share-room')share();
-    if(action==='start')move('start');
+    if(action==='start'||action==='retry-start'){
+      if(!isHost()){showToast('Maçı yalnızca oda sahibi başlatabilir.',true);return;}
+      if(app.room?.players?.length<2){showToast('Maç için en az iki oyuncu gerekli.',true);return;}
+      app.error='';move('start');
+    }
+    if(action==='dismiss-error'){app.error='';render();}
     if(action==='add-bot')addBot();
     if(action==='custom-rounds'){
       const n=Number(document.querySelector('#custom-rounds')?.value);

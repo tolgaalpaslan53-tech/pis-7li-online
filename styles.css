@@ -174,3 +174,5 @@
 .bot-controls label{font-weight:700}
 .bot-controls select{min-height:44px;padding:8px 12px;border-radius:10px;border:1px solid #92a69c;background:#fff;color:#132e27;flex:1;min-width:130px}
 .bot-controls button{min-height:44px;padding:8px 14px}
+
+.p7-start-error{position:fixed;z-index:150;bottom:12px;left:12px;right:12px;max-width:620px;margin:auto;background:#451f23;color:#fff;border:2px solid #ff8888;border-radius:14px;padding:16px;box-shadow:0 10px 35px #000a}.p7-start-error p{overflow-wrap:anywhere;font-size:13px;line-height:1.5}.p7-start-error button{margin:4px;padding:9px 14px;border-radius:8px;border:1px solid #fbb;background:#fff;color:#452029;font-weight:700}
