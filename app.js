@@ -217,7 +217,7 @@
       <div class="waiting-grid">${Array.from({length:4},(_,i)=>{
         const p=r.players[i];
         return `<div class="waiting-slot ${p?'occupied':''}">${p?playerAvatar(p.name):'<span class="empty-avatar">+</span>'}
-          <strong>${p?escapeHTML(p.name):'Oyuncu bekleniyor'}</strong><small>${p?(p.id===r.host_id?'♛ Oda Sahibi':'✓ Hazır'):'Boş koltuk'}</small></div>`;
+          <strong>${p?escapeHTML(p.name):'Oyuncu bekleniyor'}</strong><small>${p?(p.bot?'🤖 '+(p.difficulty==='hard'?'Zor':p.difficulty==='easy'?'Kolay':'Normal')+' Bot':p.id===r.host_id?'♛ Oda Sahibi':'✓ Hazır'):'Boş koltuk'}</small></div>`;
       }).join('')}</div>
       <section class="round-settings" aria-label="Maçın el sayısı">
         <div class="round-settings-title"><span>🏆 MAÇ AYARLARI</span><strong>${roundTotal(r)} EL</strong></div>
@@ -227,7 +227,8 @@
           <small>1–50 el seçilebilir. Oyun başladıktan sonra el sayısı değiştirilemez.</small>`:
           `<div class="rounds-readonly">Oda sahibi ${roundTotal(r)} el olarak ayarladı.</div>`}
       </section>
-      ${isHost()?`<button data-action="start" class="primary-btn start-button" ${n<2||app.busy?'disabled':''}>${n<2?'En az 2 oyuncu bekleniyor':`${roundTotal(r)} Ellik Maçı Başlat`} <span>→</span></button>`:
+      ${isHost()&&n<4?`<section class="bot-settings"><div class="round-settings-title"><span>🤖 BOT EKLE</span><strong>${n}/4</strong></div><p>Eksik koltukları botlarla doldur. Zorluk seviyesini sen seç.</p><div class="bot-controls"><label for="bot-level">Bot zorluğu</label><select id="bot-level"><option value="easy">🟢 Kolay</option><option value="normal" selected>🟡 Normal</option><option value="hard">🔴 Zor</option></select><button type="button" class="secondary-btn" data-action="add-bot" ${app.busy?'disabled':''}>+ Bot Ekle</button></div></section>`:''}
+      ${isHost()?`<button data-action="start class="primary-btn start-button" ${n<2||app.busy?'disabled':''}>${n<2?'En az 2 oyuncu bekleniyor':`${roundTotal(r)} Ellik Maçı Başlat`} <span>→</span></button>`:
       `<div class="waiting-hint"><span class="small-spinner"></span> Oda sahibi oyunu başlatınca masa açılacak.</div>`}
       <p class="waiting-caption">Her el 7 kartla başlar. İlk kart sinek ♣ olmalıdır. El sayısını oda sahibi belirler.</p>
     </div></main>`;
@@ -368,7 +369,7 @@
       triggerEffect('final','🔥 FİNAL ELİ!','Maçın son eli başladı!');
     if (!data.hand.some(c=>c.id===app.selected)) app.selected=null;
     if (!wasMyTurn && myTurn() && oldStatus==='playing') beep();
-    render();
+    render();scheduleBot();
   }
   async function refresh(){
     if(refreshBusy||app.busy||!app.code||!app.token||app.preview)return;
@@ -380,6 +381,7 @@
   function cleanupConnection(){
     if(channel&&client){client.removeChannel(channel).catch(()=>{});channel=null;}
     if(pollTimer){clearInterval(pollTimer);pollTimer=null;}
+    if(botTimer){clearTimeout(botTimer);botTimer=null;}
     app.connection='';
   }
   function subscribeRoom(){
@@ -430,6 +432,30 @@
       const r=await rpc('p7_set_rounds',{p_code:app.code,p_token:app.token,p_rounds:count});
       updateRoom(r);await announce();showToast(`Maç ${count} el olarak ayarlandı.`);
     });
+  }
+  async function addBot(){
+    const difficulty=document.querySelector('#bot-level')?.value||'normal';
+    await busyTask(async()=>{
+      const r=await rpc('p7_add_bot',{p_code:app.code,p_token:app.token,p_difficulty:difficulty});
+      updateRoom(r);await announce();showToast('🤖 '+({easy:'Kolay',normal:'Normal',hard:'Zor'}[difficulty])+' bot masaya katıldı.');
+    });
+  }
+  let botBusy=false, botTimer=null;
+  function scheduleBot(){
+    clearTimeout(botTimer);
+    const r=app.room;
+    if(app.preview||!r||r.status!=='playing'||app.busy||botBusy)return;
+    const bot=r.players.find(p=>p.id===r.turn&&p.bot);
+    if(!bot)return;
+    // Yalnızca oda sahibi botları ilerletir. Eşzamanlı çağrılar SQL kilidiyle korunur.
+    if(!isHost())return;
+    botTimer=setTimeout(async()=>{
+      if(botBusy||app.busy||app.room?.turn!==bot.id)return;
+      botBusy=true;
+      try{const next=await rpc('p7_bot_step',{p_code:app.code,p_token:app.token});updateRoom(next);await announce();}
+      catch(e){showToast('Bot hamlesi: '+errorMessage(e),true);}
+      finally{botBusy=false;scheduleBot();}
+    },950);
   }
   async function move(kind,card=null,suitValue=null){
     await busyTask(async()=>{
@@ -517,6 +543,7 @@
     if(action==='copy-code')copyText(app.room.code);
     if(action==='share-room')share();
     if(action==='start')move('start');
+    if(action==='add-bot')addBot();
     if(action==='custom-rounds'){
       const n=Number(document.querySelector('#custom-rounds')?.value);
       if(!Number.isInteger(n)||n<1||n>50){showToast('1 ile 50 arasında tam sayı gir.',true);return;}

@@ -166,3 +166,11 @@
 /* Keep the direction sign away from the central played card and the top seat. */
 .felt-table .direction-hud{left:19%;top:23%;transform:translateX(-50%)}
 @media(max-width:650px){.felt-table .direction-hud{left:22%;top:21%;min-width:111px;padding:3px 7px}.direction-arrow{font-size:26px}.direction-text b{font-size:9px}.direction-text small{font-size:7px}}
+
+/* V3.1 bot secimi */
+.bot-settings{margin:14px 0;padding:16px;border:1px solid rgba(120,190,150,.35);border-radius:16px;background:rgba(14,80,55,.12)}
+.bot-settings p{margin:8px 0 12px;font-size:.9rem;opacity:.85}
+.bot-controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.bot-controls label{font-weight:700}
+.bot-controls select{min-height:44px;padding:8px 12px;border-radius:10px;border:1px solid #92a69c;background:#fff;color:#132e27;flex:1;min-width:130px}
+.bot-controls button{min-height:44px;padding:8px 14px}
