@@ -59,7 +59,7 @@
   function canPlay(card, r=app.room){
     if (!card || !r || r.status!=='playing') return false;
     if (r.opening_club) return card.s==='C' && !['7','J','A','10'].includes(card.r);
-    if (r.my_first_turn && ['7','10','J','A'].includes(card.r)) return false;
+    if (r.my_first_turn) return card.s==='C' && !['7','10','J','A'].includes(card.r);
     if (r.penalty>0) return card.r==='7';
     if (r.ace_chain) return card.r==='A' || card.s===r.active_suit;
     return card.r==='J' || card.s===r.active_suit || card.r===r.top_card?.r;
@@ -195,9 +195,9 @@
     const top=getTop();
     const dynamicSuit=r.active_suit&&r.active_suit!==top?.s;
     const turnText=r.status==='finished'?`${escapeHTML(byName(r.winner_id))} ${roundNo(r)}. eli kazandı!`:
-       ownTurn?(r.opening_club?'Açılış: Normal sinek ♣ at! 7, 10, As ve Vale yasak.':r.ace_chain?'As attın! Aynı türü veya başka As oyna.':penalty?`7 cezası: +${r.penalty} kart — 7 at veya çek.`:'Sıra sende, kartını oyna!'):
+       ownTurn?((r.opening_club||r.my_first_turn)?'İlk sıranda normal sinek ♣ at! 7, 10, As ve Vale yasak.':r.ace_chain?'As attın! Aynı türü veya başka As oyna.':penalty?`7 cezası: +${r.penalty} kart — 7 at veya çek.`:'Sıra sende, kartını oyna!'):
        `Sıra ${escapeHTML(byName(r.turn))} oyuncusunda`;
-    const drawTitle=r.opening_club?'Sinek Bulana Kadar Çek':penalty?`${r.penalty} Kart Çek`:'Kart Çek';
+    const drawTitle=(r.opening_club||r.my_first_turn)?'Sinek Bulana Kadar Çek':penalty?`${r.penalty} Kart Çek`:'Kart Çek';
     const roomCard=`<div class="panel-card room-panel"><div class="panel-heading"><h3>Oda: <span>${r.code}</span></h3><button data-action="copy-code" title="Oda kodunu kopyala">⧉</button><span class="count-pill">● ${r.players.length}/4</span></div>
       <div class="compact-players">${r.players.map(p=>`<div class="compact-person"><span class="person-status ${r.turn===p.id&&r.status==='playing'?'active':''}"></span><span>${escapeHTML(p.name)} ${p.id===r.my_id?'(Sen)':''}</span><b>${p.count} <small>kart</small>${p.count===1?'<small class="last-card-alert"> !</small>':''}</b></div>`).join('')}</div>
       <button class="tiny-action" data-action="share-room">Davet bağlantısını paylaş ↗</button></div>`;
@@ -229,7 +229,7 @@
           <div class="my-hand" role="group" aria-label="Elindeki kartlar">${options.map(c=>cardHTML(c,{selectable:!app.preview,selected:app.selected===c.id,legal:ownTurn&&c.legal,disabled:!ownTurn||!c.legal})).join('')||'<div class="empty-hand">Elinde kart kalmadı.</div>'}</div>
           <div class="action-bar">
             <button class="draw-btn" type="button" data-action="draw" ${!ownTurn||!canDraw()||app.busy||app.preview?'disabled':''}>▣ <span>${drawTitle}</span></button>
-            <div class="action-hint">${ownTurn?(selectedCard?`Seçilen: <b>${escapeHTML(cardName(selectedCard))}</b>`:r.opening_club?'♣ İlk hamlede özel olmayan sinek zorunlu':r.my_first_turn?'İlk sıranda özel kart oynanamaz':r.ace_chain?'As serisini tamamla':penalty?'7 cezası birikiyor':eligible?'Uygun kartı seç':'Atılacak kart yok, çek'):'Sıranı bekle'}</div>
+            <div class="action-hint">${ownTurn?(selectedCard?`Seçilen: <b>${escapeHTML(cardName(selectedCard))}</b>`:r.opening_club?'♣ İlk hamlede özel olmayan sinek zorunlu':r.my_first_turn?'İlk sıranda yalnızca normal sinek atılabilir':r.ace_chain?'As serisini tamamla':penalty?'7 cezası birikiyor':eligible?'Uygun kartı seç':'Atılacak kart yok, çek'):'Sıranı bekle'}</div>
             ${r.drawn&&ownTurn?`<button class="pass-btn" data-action="pass" ${app.busy||app.preview?'disabled':''}>Pas Geç</button>`:''}
             <button class="play-btn" data-action="play" ${!ownTurn||!selectedCard||!canPlay(selectedCard)||app.busy||app.preview?'disabled':''}>▶ <span>Kartı Oyna</span></button>
           </div>
