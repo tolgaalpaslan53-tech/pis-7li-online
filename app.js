@@ -17,9 +17,9 @@
     screen:'home', room:null, code:null, token:null, name:localStorage.getItem('p7_name') || '',
     joinCode:new URLSearchParams(location.search).get('oda') || '', busy:false,
     preview:false, rulesOpen:false, suitPicker:false, selected:null,
-    connection:'', error:'', sound:localStorage.getItem('p7_sound') !== 'off'
+    connection:'', error:'', sound:localStorage.getItem('p7_sound') !== 'off', effect:null,effectUntil:0
   };
-  let channel = null, pollTimer = null, refreshBusy = false, toastTimer = null, lastSnapshot = 0;
+  let channel = null, pollTimer = null, refreshBusy = false, toastTimer = null, lastSnapshot = 0, effectTimer = null;
   const escapeHTML = (v) => String(v ?? '').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const suit = s => SUITS[s] || SUITS.S;
   const isMe = (p) => p?.id === app.room?.my_id;
@@ -76,6 +76,62 @@
   const score = (r,id) => Number(r?.scores?.[id]) || 0;
   const lastPoints = (r,id) => Number(r?.last_points?.[id]) || 0;
   const standings = r => [...(r?.players||[])].sort((a,b)=>score(r,a.id)-score(r,b.id) || a.name.localeCompare(b.name,'tr'));
+  // Rozetler yalnizca sunucunun tamamladigi el gecmisinden hesaplanir.
+  const BADGES = {
+    seven:{icon:'👑',name:'Yedili Kralı',description:'7 ile el bitir'},
+    streak:{icon:'🔥',name:'Seri Şampiyon',description:'Üst üste 3 el kazan'},
+    comeback:{icon:'🚀',name:'Efsane Dönüş',description:'Sonunculuktan liderliğe yüksel'},
+    master:{icon:'⚡',name:'Ceza Ustası',description:'+12 veya üzeri 7 zincirini oluştur'}
+  };
+  function achievements(r){
+    const history=Array.isArray(r?.history)?r.history:[];
+    const players=r?.players||[];
+    const awarded=[];
+    history.forEach((h,i)=>{
+      const add=(id,who)=>{if(who && players.some(p=>p.id===who)) awarded.push({id,who,round:Number(h.round)||i+1,...BADGES[id]});};
+      if(h.finish_rank==='7' || h.seven_finish) add('seven',h.winner_id);
+      if(h.seven_master_id) add('master',h.seven_master_id);
+      if(i>=2 && h.winner_id && history[i-1]?.winner_id===h.winner_id && history[i-2]?.winner_id===h.winner_id) {
+        // Aynı üç el içindeki seriye bir kez rozet verilir.
+        if(i===2 || history[i-3]?.winner_id!==h.winner_id) add('streak',h.winner_id);
+      }
+      if(i>0 && players.length>=2){
+        const prev=history[i-1]?.totals||{}, current=h.totals||{};
+        const prior=players.map(p=>Number(prev[p.id]));
+        const now=players.map(p=>Number(current[p.id]));
+        if(prior.every(Number.isFinite) && now.every(Number.isFinite)){
+          const worst=Math.max(...prior),best=Math.min(...now);
+          // Bir onceki elde tek basina sonuncu, bu elde tek basina lider.
+          const previousLast=players.filter(p=>Number(prev[p.id])===worst);
+          const newFirst=players.filter(p=>Number(current[p.id])===best);
+          if(previousLast.length===1 && newFirst.length===1 && previousLast[0].id===newFirst[0].id) {
+            add('comeback',newFirst[0].id);
+          }
+        }
+      }
+    });
+    return awarded;
+  }
+  function badgePanel(r){
+    const got=achievements(r),last=got.filter(x=>x.round===roundNo(r));
+    const tally=Object.values(BADGES).map((b)=>({b,count:got.filter(x=>x.name===b.name).length}));
+    return `<div class="panel-card badge-panel"><div class="badge-heading"><h3>🏅 Başarı Rozetleri</h3><small>${got.length} kazanıldı</small></div>
+      <div class="badge-grid">${tally.map(({b,count})=>`<div class="badge-tile ${count?'earned':''}" title="${escapeHTML(b.description)}"><span>${b.icon}</span><b>${escapeHTML(b.name)}</b><small>${count?`${count} kez`:'Henüz yok'}</small></div>`).join('')}</div>
+      ${last.length && r.status==='finished'?`<div class="badge-latest">Bu el: ${last.map(x=>`${x.icon} ${escapeHTML(byName(x.who))} — ${escapeHTML(x.name)}`).join(' · ')}</div>`:''}</div>`;
+  }
+  function tableRanking(r){
+    return `<div class="table-ranking" aria-label="Canlı puan sıralaması"><div class="table-ranking-title"><span>🏆 ANLIK SIRALAMA</span><small>Az puan lider</small></div><div class="table-ranking-grid">${standings(r).map((p,i)=>
+      `<div class="table-ranking-person ${i===0?'leading':''} ${p.id===r.my_id?'ranking-me':''}"><b>${i===0?'👑 ':''}${i+1}.</b><span>${escapeHTML(p.name)}</span><strong>${score(r,p.id)} <small>puan</small></strong></div>`).join('')}</div></div>`;
+  }
+  function tableEffect(){
+    if(!app.effect || Date.now()>app.effectUntil) return '';
+    return `<div class="table-effect ${escapeHTML(app.effect.style)}" role="status" aria-live="polite"><strong>${escapeHTML(app.effect.title)}</strong><span>${escapeHTML(app.effect.detail||'')}</span></div>`;
+  }
+  function triggerEffect(style,title,detail=''){
+    app.effect={style,title,detail};app.effectUntil=Date.now()+2000;
+    clearTimeout(effectTimer);
+    effectTimer=setTimeout(()=>{app.effect=null;if(app.screen==='room'&&app.room?.status==='playing')render();},2100);
+  }
   function scoreRows(r,finished=false){
     return standings(r).map((p,i)=>`<div class="score-row ${p.id===r.my_id?'is-mine':''}">
       <span class="score-rank">${i+1}.</span><span class="score-name">${escapeHTML(p.name)}${p.id===r.my_id?' <small>(Sen)</small>':''}</span>
@@ -204,7 +260,7 @@
     const scorePanel=`<div class="panel-card scoreboard"><div class="score-heading"><div><span>🏆 MAÇ PUANLARI</span><h3>${roundNo(r)} / ${roundTotal(r)}. El</h3></div><span class="score-low">↓ Az puan kazanır</span></div>
       <div class="score-progress"><span style="width:${Math.min(100,Math.round(((r.status==='finished'?roundNo(r):roundNo(r)-1)/roundTotal(r))*100))}%"></span></div>
       <div class="score-rows">${scoreRows(r)}</div>${historyHTML(r)}
-      <small class="score-help">Özel kart (7, 10, Vale, As) ile bitirilirse rakiplerin o eldeki ceza puanları 2 katına çıkar.</small></div>`;
+      <small class="score-help">Normal ×1 · Vale/10/geçerli As ×2 · 7 ile bitiş: kart çektirme ve ×4. Kız 12, Papaz 13 puan.</small></div>`;
     const rulesShort=`<div class="panel-card rules-panel"><h3>♧ Özel Kartlar</h3><div class="rule-line"><b class="rule-icon red">7</b><span>Sonrakine +3 kart; 7'ler birikir.</span></div>
       <div class="rule-line"><b class="rule-icon blue">J</b><span>İstediğin türü seçersin.</span></div>
       <div class="rule-line"><b class="rule-icon purple">A</b><span>Aynı oyuncu aynı türü veya başka As'ı atar.</span></div>
@@ -215,12 +271,15 @@
       <section class="game-column">
         <div class="game-meta"><div><span class="eyebrow">♠ PİS 7’Lİ · CANLI MASA</span><h1>Oyun Masası <span class="round-pill">${roundNo(r)} / ${roundTotal(r)}. EL</span></h1></div>
           <div class="game-meta-right"><span class="room-small">ODA <b>${r.code}</b></span><span class="dir-tag">${r.direction===1?'↻ Saat yönü':'↺ Ters yön'}</span></div></div>
-        <div class="round-progress">EL ${r.round_no||1} / ${r.round_total||5} <span>•</span> ${r.match_complete?'MAÇ TAMAMLANDI':'EN AZ PUAN KAZANIR'}</div>
+        <div class="round-progress">EL ${r.round_no||1} / ${r.round_total||5} <span>•</span> ${r.match_complete?'MAÇ TAMAMLANDI':'EN AZ PUAN KAZANIR'} ${roundNo(r)===roundTotal(r)?'<span class="final-round-pill">🔥 FİNAL ELİ</span>':''}</div>
+        ${tableRanking(r)}
         <div class="table-shell"><div class="felt-table"><div class="felt-emblem">♠ ♣</div>
           ${seats}
+          <div class="direction-hud ${r.direction===1?'clockwise':'counterclockwise'}" aria-label="Oyun yönü: ${r.direction===1?'saat yönü':'saat yönünün tersi'}"><span class="direction-arrow">${r.direction===1?'↻':'↺'}</span><span class="direction-text"><small>OYUN YÖNÜ</small><b>${r.direction===1?'SAAT YÖNÜ':'TERS YÖN'}</b></span></div>
+          ${tableEffect()}
           <div class="middle-area">
             <div class="pile-group"><button ${ownTurn&&!app.preview&&canDraw()?'data-action="draw"':''} class="deck-stack ${ownTurn&&canDraw()?'pile-ready':''}" type="button" title="Kart çek" ${ownTurn&&!app.preview&&canDraw()?'':'disabled'}><span class="back-pattern">♠</span></button><span class="pile-label">ÇEKME DESTESİ <b>${r.deck_count}</b></span></div>
-            <div class="played-group">${top?cardHTML(top):''}<span class="pile-label">YERDEKİ KART</span>${dynamicSuit?`<div class="chosen-suit ${suit(r.active_suit).color}">${suit(r.active_suit).symbol} ${suit(r.active_suit).name}</div>`:''}</div>
+            <div class="played-group main-played-card"><span class="current-card-title">ORTADAKİ KART</span>${top?cardHTML(top):''}<span class="pile-label">${top?escapeHTML(cardName(top)):'YERDEKİ KART'}</span>${dynamicSuit?`<div class="chosen-suit ${suit(r.active_suit).color}">SEÇİLEN: ${suit(r.active_suit).symbol} ${suit(r.active_suit).name}</div>`:''}</div>
           </div>
           <div class="turn-indicator ${ownTurn?'my-turn':''}"><span class="spark-dot"></span>${turnText}</div>
           <div class="my-seat-info">${playerAvatar(mine.name)}<span><strong>${escapeHTML(mine.name)} <span>(Sen)</span></strong><small>${r.hand.length} kart</small></span>${ownTurn?'<i>● SIRA SENDE</i>':''}</div>
@@ -235,12 +294,14 @@
           </div>
         </div>
       </section>
-      <aside class="side-column">${scorePanel}${roomCard}${rulesShort}<div class="panel-card activity-panel"><h3>◎ Son Hamle</h3><p>${escapeHTML(r.last_action || 'Oyun başlamak üzere.')}</p><span class="activity-foot">Diğer oyuncuların kartları gizlidir.</span></div></aside>
+      <aside class="side-column">${scorePanel}${badgePanel(r)}${roomCard}${rulesShort}<div class="panel-card activity-panel"><h3>◎ Son Hamle</h3><p>${escapeHTML(r.last_action || 'Oyun başlamak üzere.')}</p><span class="activity-foot">Diğer oyuncuların kartları gizlidir.</span></div></aside>
       ${r.status==='finished'?`<div class="winner-overlay"><div class="winner-panel score-finish"><div class="winner-cup">🏆</div>
+        ${r.finish_rank==='7'?`<div class="seven-finish-alert"><strong>×4 CEZA!</strong><span>Rakiplere toplam ${Number(r.seven_finish_drawn)||0} kart çektirildi. Yedili zinciri hesaba katıldı.</span></div>`:''}
         <span class="finish-kicker">${r.match_complete?`${roundTotal(r)} ELLİK MAÇ TAMAMLANDI`:`${roundNo(r)}. EL TAMAMLANDI`}</span>
         <h2>${r.match_complete?(()=>{const sorted=standings(r),leaders=sorted.filter(p=>score(r,p.id)===score(r,sorted[0].id));return leaders.length>1?`BERABERE: ${leaders.map(p=>escapeHTML(p.name)).join(' & ')}`:`${escapeHTML(sorted[0].name)} MAÇI KAZANDI!`;})():r.winner_id===r.my_id?'BU ELİ KAZANDIN!':`${escapeHTML(byName(r.winner_id))} ELİ KAZANDI!`}</h2>
         <p>${r.match_complete?'Maç bitti! Toplamda en az ceza puanı alan kazanır.':'El sonu puanları hesaplandı. Oda sahibi sıradaki eli başlatabilir.'}</p>
         <div class="finish-table"><div class="finish-table-title"><span>OYUNCU</span><span>EL / TOPLAM PUAN</span></div>${scoreRows(r,true)}</div>
+        ${(()=>{const badges=achievements(r).filter(b=>b.round===roundNo(r));return badges.length?`<div class="finish-badges"><strong>🏅 BU ELİN ROZETLERİ</strong>${badges.map(b=>`<div><span>${b.icon}</span><span><b>${escapeHTML(b.name)}</b><small>${escapeHTML(byName(b.who))}</small></span></div>`).join('')}</div>`:'';})()}
         ${isHost()&&!app.preview?`<button class="primary-btn" data-action="start">${r.match_complete?'Yeni Maç Başlat ↻':`${roundNo(r)+1}. Ele Geç →`}</button>`:
         `<div class="waiting-hint">${app.preview?'':'Oda sahibinin devam etmesi bekleniyor.'}</div>`}
         <button class="secondary-btn" data-action="${app.preview?'close-preview':'leave'}">${app.preview?'Önizlemeden Çık':'Odadan Ayrıl'}</button></div></div>`:''}
@@ -249,14 +310,14 @@
   function rulesModal(){
     return `<div class="modal-backdrop" data-action="close-modal"><div class="modal-card" role="dialog" aria-modal="true" aria-label="Oyun kuralları"><div class="modal-title"><h2>🃏 Oyun Kuralları</h2><button data-action="close-modal" aria-label="Kapat">✕</button></div>
       <p>2–4 oyuncu; 52 kartlık deste. Her el herkes 7 kartla başlar. Oda sahibi 1–50 el seçebilir.</p>
-      <ul><li><b>Açılış:</b> İlk oyuncu özel olmayan sinek ♣ atmak zorundadır (7, 10, As ve Vale yasak). Uygun sinek yoksa uygun sinek gelene kadar çeker. İlk hamleden sonra aynı tür veya aynı değer atılır.</li>
+      <ul><li><b>Her oyuncunun ilk sırası:</b> Her elin ilk turunda herkes yalnızca özel olmayan sinek ♣ atabilir (sinek 7, 10, As, Vale yasak). Uygun sinek yoksa bulana kadar çeker. Sonraki sıralarda aynı tür veya aynı değer atılır.</li>
         <li><b>7:</b> Sonraki oyuncuya +3 kart. Üst üste 7 atılırsa ceza +6, +9, +12 olarak birikir. Ceza çekilince sıra geçer.</li>
         <li><b>Vale (J):</b> Oyuncu sinek ♣, karo ♦, kupa ♥ veya maça ♠ seçer.</li>
         <li><b>As (A):</b> As'ı atan kişi yeniden oynar. Son As'ın türünden bir kart veya başka herhangi bir As atabilir. Kart yoksa 1 çeker; uygunsa oynar, değilse sıra geçer.</li>
         <li><b>10:</b> Oyun yönünü tersine çevirir.</li>
         <li><b>Normal tur:</b> Kendi sırasında kart çekme her zaman açıktır. Çekilen kart uygunsa oynanabilir veya pas geçilebilir; uygun değilse sıra geçer.</li>
         <li><b>Elin bitişi:</b> As dışındaki son kartını atan oyuncu eli kazanır. Son kart As ise takip kartını oynama kuralı devam eder.</li>
-        <li><b>Puan:</b> Eli bitiren 0 puan alır. Özel kartla bitişte rakiplerin cezası 2 katına çıkar. Diğerlerinin elinde kalan 2–10 değerindeki kartlar üzerindeki sayı kadar (7 hariç), 7 = 20, Vale/Kız/Papaz = 10, As = 15 ceza puanı getirir.</li>
+        <li><b>Puan:</b> Eli bitiren 0 puan alır. Normal bitiş ×1; Vale/10/geçerli As ile bitiş ×2. 7 ile bitişte her rakip +3 kart çeker; çekilen her 7 yeni +3 getirir ve kalan kartlarının toplam cezası ×4 olur. Kart puanları: 2–6 ve 8–10 kendi değeri, 7=20, Vale=10, Kız=12, Papaz=13, As=15.</li>
         <li><b>Maç sonucu:</b> Seçilen tüm eller bitince toplam ceza puanı en düşük olan kazanır. Eşitlik varsa beraberlik olur.</li>
       </ul><p class="rules-note">Son kart uyarısı otomatik yapılır. Oda sahibi maç başlamadan önce 3, 5, 10, 20 veya özel el sayısı seçebilir.</p>
       <button class="primary-btn" data-action="close-modal">Anladım</button></div></div>`;
@@ -291,8 +352,20 @@
     if (!data || !data.code || app.preview) return;
     const updated=Date.parse(data.updated_at||'') || 0;
     if (app.room && data.code===app.room.code && updated < lastSnapshot) return;
-    const wasMyTurn=myTurn(), oldStatus=app.room?.status;
+    const previous=app.room;
+    const wasMyTurn=myTurn(), oldStatus=previous?.status;
     app.room=data; app.screen='room'; lastSnapshot=updated;
+    if(previous?.code===data.code && previous.status==='playing' && data.status==='playing'){
+      if(Number(data.penalty)>Number(previous.penalty) && Number(data.penalty)>0)
+        triggerEffect('penalty',`+${Number(data.penalty)} CEZA!`,'7 zinciri büyüyor');
+      else if(data.direction!==previous.direction)
+        triggerEffect('reverse',data.direction===1?'↻ SAAT YÖNÜ':'↺ TERS YÖN','10 atıldı! Yön değişti.');
+      if(!previous.seven_master_id && data.seven_master_id)
+        triggerEffect('badge','⚡ CEZA USTASI!',`${byName(data.seven_master_id)} +12 zincirini oluşturdu!`);
+    }
+    if(data.status==='playing' && roundNo(data)===roundTotal(data) &&
+       (!previous || previous.status!=='playing' || roundNo(previous)!==roundNo(data)))
+      triggerEffect('final','🔥 FİNAL ELİ!','Maçın son eli başladı!');
     if (!data.hand.some(c=>c.id===app.selected)) app.selected=null;
     if (!wasMyTurn && myTurn() && oldStatus==='playing') beep();
     render();
@@ -329,6 +402,7 @@
   function resetRoom(){
     app.screen='home';app.code=null;app.token=null;app.room=null;app.preview=false;
     app.selected=null;app.suitPicker=false;app.rulesOpen=false;app.busy=false;lastSnapshot=0;
+    app.effect=null;clearTimeout(effectTimer);
     history.replaceState({},'',location.pathname);
     render();
   }
@@ -381,7 +455,8 @@
         {id:'C_10',r:'10',s:'C'},{id:'C_J',r:'J',s:'C'}, {id:'D_8',r:'8',s:'D'}, {id:'S_K',r:'K',s:'S'}],
       top_card:{id:'C_A',r:'A',s:'C'},active_suit:'C',turn:'me',direction:1,
       penalty:0,ace_chain:true,drawn:false,deck_count:23,winner_id:null,round_no:2,round_total:5,scores:{mert:32,elif:18,emre:45,me:11},opening_club:false,match_complete:false,
-      last_points:{},history:[{round:1,winner_id:'me',points:{mert:32,elif:18,emre:45,me:0}}],
+      last_points:{},finish_rank:null,finish_multiplier:1,seven_master_id:null,
+      history:[{round:1,winner_id:'me',finish_rank:'7',seven_finish:true,finish_multiplier:4,points:{mert:32,elif:18,emre:45,me:0},totals:{mert:32,elif:18,emre:45,me:0}}],
       last_action:'Sen Sinek As attın. Üzerine sinek veya başka bir As atabilirsin.'};
     render();
   }

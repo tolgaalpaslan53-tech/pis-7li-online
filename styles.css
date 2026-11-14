@@ -73,3 +73,96 @@
 @media(max-width:900px){.side-column .scoreboard{grid-column:1/-1}.scoreboard .score-rows{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:650px){.round-settings{padding:15px;margin-top:16px}.round-presets{gap:6px}.round-preset{padding:11px 3px;font-size:12px}.round-custom{flex-wrap:wrap}.round-custom label{flex-basis:100%}.round-custom input{flex:1;width:0}.round-custom button{flex:1}.round-pill{font-size:10px;padding:5px 6px}.scoreboard .score-rows{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.score-row{padding:8px 6px;gap:4px}.score-name{font-size:11px}.score-row strong{font-size:12px}.score-row strong small{display:none}.score-low{font-size:9px}.score-finish{padding:16px}.finish-table .score-row{padding:8px 6px}.finish-table .score-row strong small{display:none}}
 @media(max-width:385px){.scoreboard .score-rows{grid-template-columns:1fr}.round-pill{display:block;width:max-content;margin:5px 0 0}.finish-table .score-row{font-size:10px}.score-hand{font-size:10px}}
+
+/* ═════════════ PIS 7'LI V3.0 — REKABET GUNCELLEMESI ═════════════ */
+.table-ranking{position:relative;z-index:2;margin:4px 0 12px;padding:10px 13px;border:1px solid rgba(222,188,115,.46);border-radius:13px;background:linear-gradient(115deg,#173b2d,#091d19);box-shadow:0 8px 23px #0005}
+.table-ranking-title{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;font-size:11px;font-weight:900;letter-spacing:.07em;color:#f0d293}
+.table-ranking-title small{font-size:10px;color:#afcabb;letter-spacing:normal}
+.table-ranking-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px}
+.table-ranking-person{display:flex;align-items:center;gap:6px;min-width:0;padding:8px 9px;background:#071d16c9;border:1px solid #ffffff16;border-radius:9px;font-size:11px}
+.table-ranking-person.leading{background:#324023;border-color:#bd9c5a8c}
+.table-ranking-person.ranking-me{box-shadow:inset 0 0 0 1px #5ab67b77}
+.table-ranking-person>b{flex-shrink:0;color:#f0d08d}
+.table-ranking-person>span{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-weight:800;color:#f7f6eb}
+.table-ranking-person>strong{margin-left:auto;white-space:nowrap;color:#e9d391;font-size:13px;font-variant-numeric:tabular-nums}
+.table-ranking-person>strong small{font-size:9px;color:#a9baad;font-weight:600}
+.final-round-pill{display:inline-block;margin-left:9px;padding:5px 10px;background:#813a23;border:1px solid #f69f55;border-radius:18px;color:#ffe1a0;animation:p7-finalglow 1.8s ease-in-out infinite alternate}
+/* Game direction: unambiguous and never hidden by the other overlay */
+.felt-table .direction-hud{position:absolute;z-index:4;top:23%;left:50%;transform:translateX(-50%);display:flex;align-items:center;justify-content:center;gap:9px;min-width:145px;padding:6px 13px;border-radius:45px;background:#071a15f2;border:2px solid #c5ae70;box-shadow:0 4px 18px #000a,0 0 0 3px #ffffff0a;white-space:nowrap}
+.direction-arrow{font-size:35px;font-weight:900;color:#f5d797;line-height:1}
+.direction-text{display:flex;flex-direction:column;gap:1px;align-items:flex-start}
+.direction-text small{font-size:9px;letter-spacing:.12em;color:#a1bfae;font-weight:850}
+.direction-text b{font-size:11px;letter-spacing:.04em;color:#f2eecc}
+.direction-hud.counterclockwise{border-color:#80c7d1}.direction-hud.counterclockwise .direction-arrow{color:#95ecf3}
+/* Center card carries more visual priority than the drawing deck. */
+.felt-table .middle-area{top:48%;gap:clamp(18px,5vw,67px)}
+.felt-table .played-group.main-played-card{gap:6px;z-index:5}
+.current-card-title{font-weight:900;font-size:10px;letter-spacing:.1em;color:#fbe4b0;text-shadow:0 2px 6px #000}
+.felt-table .played-group.main-played-card .card-face{width:93px;height:132px;border:4px solid #ffeac1;border-radius:10px;box-shadow:0 0 0 3px #c69e4e8a,0 11px 28px #000c,0 0 26px #f6c56845;transform:rotate(2deg)}
+.felt-table .played-group.main-played-card .card-center{font-size:47px}
+.felt-table .played-group.main-played-card .card-corner{font-size:22px}
+.felt-table .played-group.main-played-card .card-corner span{font-size:18px}
+.felt-table .played-group.main-played-card .pile-label{max-width:160px;padding:4px 7px;border-radius:8px;background:#071e16d9;color:#f9edc7;font-weight:850;letter-spacing:.04em;font-size:10px;text-align:center}
+.felt-table .chosen-suit{top:33%;right:-80px;border-color:#e3c87f;box-shadow:0 3px 10px #000a;z-index:6;color:#fff3d7;font-size:10px}
+.felt-table .turn-indicator{top:79%;max-width:89%;white-space:normal;line-height:1.35}
+/* Short, silent, auto-dismissing transitions. */
+.table-effect{position:absolute;z-index:12;left:50%;top:48%;transform:translate(-50%,-50%);pointer-events:none;display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;width:max-content;max-width:87%;padding:17px 25px;border:2px solid #f2b36d;border-radius:20px;background:#27140eee;box-shadow:0 9px 50px #000b,0 0 30px #fa933b88;animation:p7-effectenter 2s ease-out both}
+.table-effect strong{font:950 clamp(22px,3vw,45px) 'Outfit',system-ui,sans-serif;color:#ffce79;white-space:nowrap;text-shadow:0 3px 12px #170300}
+.table-effect span{font-size:12px;font-weight:800;color:#ffe9cf}
+.table-effect.reverse{border-color:#7de7c2;background:#0c302ae9;box-shadow:0 0 35px #46d6a966}.table-effect.reverse strong{color:#bdffdd}
+.table-effect.final{border-color:#ffe0a1;background:#47331eed}.table-effect.final strong{color:#ffe4a1}
+.table-effect.badge{border-color:#bd9efe;background:#2c2345ee}.table-effect.badge strong{color:#e6d6ff}
+@keyframes p7-effectenter{0%{opacity:0;transform:translate(-50%,-50%) scale(.65)}12%{opacity:1;transform:translate(-50%,-50%) scale(1.11)}23%,73%{opacity:1;transform:translate(-50%,-50%) scale(1)}100%{opacity:0;transform:translate(-50%,-58%) scale(1)}}
+@keyframes p7-finalglow{from{box-shadow:0 0 1px #f8a95755}to{box-shadow:0 0 19px #fb9e4b9e}}
+/* Badges, awarded only from server-authoritative hand history. */
+.badge-panel{border-color:#b7a07552}
+.badge-heading{display:flex;justify-content:space-between;align-items:center;gap:6px}
+.badge-heading h3{font-size:16px}
+.badge-heading small{color:#b0bba8;font-size:10px}
+.badge-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:13px}
+.badge-tile{min-width:0;display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center;padding:10px 4px;border-radius:11px;background:#0e1f1b;border:1px solid #ffffff16;opacity:.58}
+.badge-tile.earned{opacity:1;background:#283422;border-color:#d0aa6299}
+.badge-tile>span{font-size:24px;filter:grayscale(1)}.badge-tile.earned>span{filter:none}
+.badge-tile b{font-size:10px;color:#f4e9c6}.badge-tile small{font-size:9px;color:#a6c2aa}
+.badge-latest{font-size:11px;color:#e9d4a2;line-height:1.6;margin-top:11px}
+.seven-finish-alert{display:flex;flex-direction:column;align-items:center;gap:6px;border:1px solid #e5735e;background:#54241f;border-radius:13px;padding:13px;margin:8px 0 16px}
+.seven-finish-alert strong{font:950 31px 'Outfit',system-ui,sans-serif;color:#ffca8b;animation:p7-finalglow 1s ease infinite alternate}
+.seven-finish-alert span{font-size:12px;color:#ffe0c4;line-height:1.45}
+.finish-badges{display:flex;flex-direction:column;align-items:stretch;gap:7px;margin:15px auto;background:#142a21;border:1px solid #c5a26980;border-radius:13px;padding:12px;text-align:left}
+.finish-badges>strong{font-size:11px;letter-spacing:.08em;color:#f8d798}
+.finish-badges>div{display:flex;align-items:center;gap:10px;padding:7px;background:#ffffff0a;border-radius:8px}
+.finish-badges>div>span:first-child{font-size:24px}
+.finish-badges>div>span:last-child{display:flex;flex-direction:column;gap:3px}
+.finish-badges b{font-size:12px}.finish-badges small{font-size:10px;color:#a4bbaa}
+@media(max-width:900px){.table-ranking-person{padding:7px 6px;gap:4px}.table-ranking-person>strong{font-size:11px}.table-ranking-person>strong small{display:none}.badge-panel{grid-column:1/-1}.badge-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media(max-width:650px){
+ .table-ranking{margin:0 8px 9px;padding:8px 9px;border-radius:11px}
+ .table-ranking-title{margin-bottom:6px;font-size:10px}
+ .table-ranking-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}
+ .table-ranking-person{padding:6px 7px;font-size:10px}
+ .table-ranking-person>strong{font-size:12px}
+ .final-round-pill{font-size:10px;padding:3px 6px;margin-left:4px}
+ .felt-table .direction-hud{top:24%;min-width:125px;padding:4px 8px;gap:6px}
+ .direction-arrow{font-size:28px}.direction-text small{font-size:8px}.direction-text b{font-size:10px}
+ .felt-table .middle-area{top:48%;gap:19px}
+ .felt-table .played-group.main-played-card{gap:3px}
+ .current-card-title{font-size:8px}
+ .felt-table .played-group.main-played-card .card-face{width:74px;height:104px;border-width:3px;border-radius:8px}
+ .felt-table .played-group.main-played-card .card-center{font-size:34px}
+ .felt-table .played-group.main-played-card .card-corner{font-size:16px}
+ .felt-table .played-group.main-played-card .card-corner span{font-size:13px}
+ .felt-table .played-group.main-played-card .pile-label{font-size:8px;max-width:105px}
+ .felt-table .chosen-suit{font-size:9px;right:-38px;top:24%;max-width:70px;white-space:normal;padding:4px}
+ .felt-table .turn-indicator{top:77%;font-size:10px;max-width:88%;padding:7px 10px}
+ .table-effect{padding:10px 12px;gap:3px}.table-effect strong{font-size:22px}.table-effect span{font-size:10px}
+ .badge-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:5px}.badge-tile b{font-size:9px}.badge-tile small{font-size:8px}
+}
+@media(max-width:385px){.table-ranking-person{font-size:9px}.felt-table .middle-area{gap:12px}.felt-table .played-group.main-played-card .card-face{width:68px;height:98px}.felt-table .played-group.main-played-card .card-center{font-size:30px}.felt-table .turn-indicator{top:76%;font-size:9px}}
+@media(prefers-reduced-motion:reduce){.table-effect,.final-round-pill,.seven-finish-alert strong{animation:none!important}}
+/* Championship reveal, without audio. */
+.winner-overlay .winner-cup{display:inline-block;transform-origin:center bottom;animation:p7-cup 1.25s cubic-bezier(.17,.9,.34,1.26) both}
+@keyframes p7-cup{0%{transform:translateY(35px) scale(.55) rotate(-14deg);opacity:0}65%{transform:translateY(-6px) scale(1.15) rotate(6deg);opacity:1}100%{transform:translateY(0) scale(1) rotate(0);opacity:1}}
+@media(prefers-reduced-motion:reduce){.winner-overlay .winner-cup{animation:none!important}}
+/* Keep the direction sign away from the central played card and the top seat. */
+.felt-table .direction-hud{left:19%;top:23%;transform:translateX(-50%)}
+@media(max-width:650px){.felt-table .direction-hud{left:22%;top:21%;min-width:111px;padding:3px 7px}.direction-arrow{font-size:26px}.direction-text b{font-size:9px}.direction-text small{font-size:7px}}
